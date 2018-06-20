@@ -5,9 +5,10 @@ import android.graphics.BitmapFactory;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
-import android.util.SparseIntArray;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -34,14 +35,12 @@ import pl.aprilapps.easyphotopicker.EasyImage;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = MainActivity.class.getSimpleName();
-    private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
 
     ImageView imageView;
     TextView details;
     Button gallery, camera;
-
-    File jpgimage = null;
-    String path = "";
+    File mImageFile;
+    float mFinalProb;
 
 
     @Override
@@ -72,9 +71,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-
     }
-
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -88,12 +85,11 @@ public class MainActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onImagePicked(File imageFile, EasyImage.ImageSource source, int type) {
+            public void onImagePicked(final File imageFile, EasyImage.ImageSource source, int type) {
 
+                mImageFile = imageFile;
 
                 FirebaseVisionImage image = FirebaseVisionImage.fromBitmap(new BitmapFactory().decodeFile(imageFile.getAbsolutePath()));
-                Toast.makeText(MainActivity.this, "Image access success!!!", Toast.LENGTH_LONG).show();
-
 
                 FirebaseVisionFaceDetectorOptions options =
                         new FirebaseVisionFaceDetectorOptions.Builder()
@@ -107,7 +103,6 @@ public class MainActivity extends AppCompatActivity {
 
                 FirebaseVisionFaceDetector detector = FirebaseVision.getInstance()
                         .getVisionFaceDetector(options);
-
 
                 Task<List<FirebaseVisionFace>> result =
                         detector.detectInImage(image)
@@ -132,12 +127,16 @@ public class MainActivity extends AppCompatActivity {
                                                     if (face.getSmilingProbability() != FirebaseVisionFace.UNCOMPUTED_PROBABILITY) {
                                                         float smileProb = face.getSmilingProbability();
                                                         float finalProb = smileProb * 100;
+                                                        mFinalProb = finalProb;
                                                         String prob = "";
                                                         if (smileProb != 0) {
                                                             prob = String.valueOf(finalProb) + "%" + "Happy";
+                                                        } else {
+                                                            Toast.makeText(MainActivity.this, "Put up a smile :) ", Toast.LENGTH_SHORT).show();
                                                         }
 
-                                                        details.setText(prob);
+                                                        showAlertDialog();
+
                                                     }
                                                     if (face.getRightEyeOpenProbability() != FirebaseVisionFace.UNCOMPUTED_PROBABILITY) {
                                                         float rightEyeOpenProb = face.getRightEyeOpenProbability();
@@ -156,18 +155,34 @@ public class MainActivity extends AppCompatActivity {
                                             public void onFailure(@NonNull Exception e) {
                                                 // Task failed with an exception
                                                 // ...
+                                                Log.d(TAG, "onFailure: " + "Firebase failed to detect face");
+                                                Toast.makeText(MainActivity.this, "Firebase failed to detect face", Toast.LENGTH_SHORT).show();
                                             }
                                         });
 
                 FirebaseVisionFace faces;
 
-
-//                jpgimage = imageFile;
-//                path = imageFile.getAbsolutePath();
-//                Log.d(TAG, "Image picker success");
             }
 
         });
+    }
+
+    private void showAlertDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+        LayoutInflater inflater = (LayoutInflater) MainActivity.this.getSystemService(LAYOUT_INFLATER_SERVICE);
+        View dialog = inflater.inflate(R.layout.dialog_face, null, false);
+
+        builder.setView(dialog)
+                .setTitle("Be happy :)");
+
+        ImageView smilingFace = dialog.findViewById(R.id.image_face);
+        TextView smileCoefficient = dialog.findViewById(R.id.happiness_text);
+
+        smilingFace.setImageBitmap(new BitmapFactory().decodeFile(mImageFile.getAbsolutePath()));
+        smileCoefficient.setText(" " + String.valueOf(mFinalProb) + "%" + " happy!");
+
+        AlertDialog alertDialog = builder.create();
+        alertDialog.show();
     }
 
 
